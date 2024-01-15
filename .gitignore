@@ -127,15 +127,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-rover/docs/migrations/
+
 .vscode/settings.json
 .env.dev
-Innsyn.xlsx
-Kontaktlogg.xlsx
-tmp
+
 .DS_Store
 .build-latest-tag
-rover/.my_cache.bin
+
 .my_cache.bin
 backup/
 cert.crt

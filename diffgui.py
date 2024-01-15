@@ -40,11 +40,18 @@ def convert_docx_to_text(file_path):
 
 
 def compare_documents(file1, file2):
-    md1 = convert_docx_to_md_with_pandoc(file1)
-    md2 = convert_docx_to_md_with_pandoc(file2)
+    if file1.endswith(".docx") and file2.endswith(".docx"):
+        text1 = convert_docx_to_md_with_pandoc(file1)
+        text2 = convert_docx_to_md_with_pandoc(file2)
+    else:
+        with open(file1, "r", encoding="utf-8") as f1, open(
+            file2, "r", encoding="utf-8"
+        ) as f2:
+            text1 = f1.read()
+            text2 = f2.read()
 
-    diff = unified_diff(md1.splitlines(), md2.splitlines(), lineterm="")
-    return "\n".join(list(diff))
+    diff = ndiff(text1.splitlines(), text2.splitlines())
+    return diff
 
 
 class DiffViewer(QMainWindow):
