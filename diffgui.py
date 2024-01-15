@@ -1,9 +1,13 @@
+import os
 import subprocess
 import sys
 from difflib import ndiff, unified_diff
 
 import docx
 import openai
+import requests
+from O365 import Account, FileSystemTokenBackend
+from O365.sharepoint import Site
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
@@ -61,7 +65,7 @@ class DiffViewer(QMainWindow):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("Diff Viewer")
+        self.setWindowTitle("Microsoft 365 Word text edits visualised")
         self.setGeometry(100, 100, 1000, 700)
 
         # Main layout
@@ -127,7 +131,7 @@ class DiffViewer(QMainWindow):
                 QMessageBox.critical(
                     self, "Error", f"An error occurred while reading the files: {e}"
                 )
-                raise
+                # raise
 
     def displayDiff(self, diff):
         self.diffViewer.clear()
@@ -172,7 +176,66 @@ class DiffViewer(QMainWindow):
             self.diffViewer.append(chunk.choices[0].delta.content)
 
 
+class MicrosoftGraphClient:
+    def __init__(self, client_id, client_secret, redirect_uri, site_url):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.redirect_uri = redirect_uri
+        self.site_url = site_url
+
+        # Initialize token backend and account
+        self.token_backend = FileSystemTokenBackend(
+            token_path=".", token_filename="o365_token.txt"
+        )
+        self.account = self._get_authenticated_account()
+
+    def _get_authenticated_account(self):
+        account = Account(
+            (self.client_id, self.client_secret), token_backend=self.token_backend
+        )
+        if not account.is_authenticated:
+            auth_url, _ = account.get_authorization_url(redirect_uri=self.redirect_uri)
+            print("Please visit this URL to authenticate:", auth_url)
+            auth_code = input("Enter the auth code: ")
+            account.get_access_token(auth_code, redirect_uri=self.redirect_uri)
+        return account
+
+    def get_file_version_history(self, file_path):
+        site = Site(
+            self.site_url, auth_flow_type="credential", auth_account=self.account
+        )
+
+        # Get the file and its version history
+        file = site.get_item(file_path)
+        print("File Name:", file.display_name)
+        print("File ID:", file.id)
+
+        version_history = requests.get(
+            f"{self.site_url}/_api/web/GetFileByServerRelativeUrl('{file_path}')/Versions",
+            headers={"Authorization": f"Bearer {self.account.access_token}"},
+        )
+        versions = version_history.json()["value"]
+
+        print("Version History:")
+        for version in versions:
+            print(
+                f"Version: {version['VersionLabel']}, Modified by: {version['CreatedBy']['Email']}, Modified on: {version['Created']}"
+            )
+
+
+# Example usage
 if __name__ == "__main__":
+    client_id = os.environ.get("CLIENT_ID")
+    client_secret = os.environ.get("CLIENT_SECRET")
+    redirect_uri = os.environ.get("REDIRECT_URI")
+    site_url = os.environ.get("SITE_URL")
+    file_path = os.environ.get("FILE_PATH")
+
+    graph_client = MicrosoftGraphClient(
+        client_id, client_secret, redirect_uri, site_url
+    )
+    graph_client.get_file_version_history(file_path)
+
     app = QApplication(sys.argv)
     mainWin = DiffViewer()
     mainWin.show()
